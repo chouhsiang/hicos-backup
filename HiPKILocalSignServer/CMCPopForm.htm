@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+    <h2><span id="actionText"></span></h2><img src="../waiting.gif"></img>
+    <form name="DemoForm" action="CMC" method="POST">
+        <input type="hidden" name="tbsPackage"/>
+    </form>
+    <script type="text/javascript">
+        function receiveMessage(event) {
+            var matchstr = "(%matchstr%)($|:\\d+$)";
+            if (event.origin.match(matchstr) == null) {
+                var errRet = {};
+                errRet["func"] = "CMC";
+                errRet["ret_code"] = 0x7600000F;
+                errRet["message"] = "禁止存取的網域";
+                if (window.opener) {
+                    window.opener.postMessage(JSON.stringify(errRet), event.origin);
+                }
+                return;
+            }
+
+            var safeOrigin = event.origin;
+            var ret = JSON.parse(event.data);
+            var actionText = document.getElementById("actionText");
+
+            if (ret.func) {
+                var action = null;
+                var actionConfig = {
+                    "bulidUnblockCardRequest":          { action: "bulidUnblockCardRequest",          text: "取得解鎖資訊中" },
+                    "unblockCard":                      { action: "unblockCard",                      text: "解鎖中" },
+                    "generalUnblockCard":               { action: "generalUnblockCard",               text: "解鎖中" },
+                    "unblockCardCheckNewPIN":           { action: "unblockCardCheckNewPIN",           text: "解鎖中" },
+                    "changeUserPINCode":                { action: "changeUserPINCode",                text: "密碼變更中" },
+                    "buildOpenCardGetUserPINRequest":   { action: "buildOpenCardGetUserPINRequest",   text: "卡片資料擷取中" },
+                    "buildOpenCardValidateUserRequest": { action: "buildOpenCardValidateUserRequest", text: "開卡資料擷取中" },
+                    "openCard":                         { action: "openCard",                         text: "開卡作業中" },
+                    "openCardCheckNewPIN":              { action: "openCardCheckNewPIN",              text: "開卡作業中" },
+                    "bulidResetUserPINRequest":         { action: "bulidResetUserPINRequest",         text: "資訊擷取中" },
+                    "resetUserPIN":                     { action: "resetUserPIN",                     text: "重設作業中" },
+                    "unblockCardGTestCA":               { action: "unblockCardGTestCA",               text: "解鎖中" }
+                };
+
+
+                var config = actionConfig[ret.func];
+                if (config) {
+                    action = config.action;
+                    actionText.innerHTML = config.text;
+                }
+
+
+                if (action != null) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {             
+                        if (xhttp.readyState == 4) {                   
+                            if (xhttp.status == 200) {                       
+                                if (window.opener) window.opener.postMessage(xhttp.responseText, safeOrigin);
+                            } else {
+                                if (xhttp.status == 0) {
+                                    if (window.opener) window.opener.postMessage('{"func":"'+action+'","ret_code":'+520+'}', safeOrigin);
+                                } else {
+                                    if (window.opener) window.opener.postMessage('{"func":"'+action+'","ret_code":'+xhttp.status+'}', safeOrigin);
+                                }               
+                            }
+                        }
+                    };      
+                    xhttp.open("POST", "sendCardCommand", true);
+                    xhttp.send("tbsPackage=" + event.data);
+                } else {
+                    if (window.opener) window.opener.postMessage('{"func":"'+action+'","ret_code":'+0x7600000E+'}', safeOrigin);
+                }
+            }
+        }
+
+        var tbsData = {};
+        var msg;
+        window.onload = function() {
+            if (window.addEventListener) window.addEventListener("message", receiveMessage, false);
+            
+            if (window.opener) {
+                tbsData["func"] = "CMCAtn";
+                msg = JSON.stringify(tbsData);
+                
+                var initialOrigin = String.fromCharCode(42); 
+                try {
+                    if (document.referrer) {
+                        initialOrigin = new URL(document.referrer).origin;
+                    }
+                } catch (e) {
+                }
+                
+                window.opener.postMessage(msg, initialOrigin);
+            }
+        };
+    </script>
+    <br/>
+</body>
+</html>

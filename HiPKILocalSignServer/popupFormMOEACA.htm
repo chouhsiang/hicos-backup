@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+    <h2><span id="actionText"></span></h2><img src="../waiting.gif"></img>
+    <form name="DemoForm" action="sign" method="POST">
+        <input type="hidden" name="tbsPackage"/>
+    </form>
+    <script type="text/javascript">
+        function receiveMessage(event) {
+            var matchstr = "(%matchstr%)($|:\\d+$)";
+            if (event.origin.match(matchstr) == null) {
+                var errRet = {};
+                errRet["func"] = "sign";
+                errRet["ret_code"] = 0x7600000F;
+                errRet["message"] = "禁止存取的網域";
+                if (window.opener) {
+                    window.opener.postMessage(JSON.stringify(errRet), event.origin);
+                }
+                window.close();
+                return;
+            }
+            
+            var safeOrigin = event.origin;
+            var ret = JSON.parse(event.data);
+            var actionText = document.getElementById("actionText");
+            
+            if (ret.func) {
+                var action = null;
+                var targetUrl = null;
+                var actionConfig = {
+                    "exDynamicCreateFile":  { action: "exDynamicCreateFile",  text: "作業中", url: "sendCommand_exDynamicCreateFile" },
+                    "exDynamicReleaseFile": { action: "exDynamicReleaseFile", text: "作業中", url: "sendCommand_exDynamicReleaseFile" }
+                };
+
+                var config = actionConfig[ret.func];
+                if (config) {
+                    action = config.action;
+                    actionText.innerHTML = config.text;
+                    targetUrl = config.url; // 取得對應的網址
+                }
+
+                if (action != null) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {
+                        if (xhttp.readyState == 4) {
+                            if (xhttp.status == 200) {
+                                if (window.opener) {
+                                    window.opener.postMessage('{"func":"'+action+'","ret_code":'+xhttp.status+'}', safeOrigin);
+                                }
+                                window.close();
+                            }
+                        }
+                    };
+                    
+                    // 改為直接使用查表得到的 targetUrl
+                    if (targetUrl) {
+                        xhttp.open("POST", targetUrl, true);
+                        xhttp.send("tbsPackage=" + event.data);
+                    }
+                } else {
+                    if (window.opener) {
+                        window.opener.postMessage('{"func":"'+action+'","ret_code":'+0x7600000E+'}', safeOrigin);
+                    }
+                    window.close();
+                }
+            }
+        }
+        
+        window.addEventListener("message", receiveMessage, false);
+        var tbsData = {};
+        tbsData["func"] = "getTbs";
+        var msg = JSON.stringify(tbsData);
+        var postTarget = window.opener;
+
+        if (postTarget) {
+            var initialOrigin = String.fromCharCode(42); 
+            try {
+                if (document.referrer) {
+                    initialOrigin = new URL(document.referrer).origin;
+                }
+            } catch (e) {
+            }
+            
+            postTarget.postMessage(msg, initialOrigin);
+        }
+    </script>
+    <br/>
+</body>
+</html>

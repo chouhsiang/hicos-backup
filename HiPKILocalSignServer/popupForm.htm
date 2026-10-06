@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+    <h2><span id="actionText"></span></h2><img src="waiting.gif"></img>
+    <form name="DemoForm" action="sign" method="POST">
+        <input type="hidden" name="tbsPackage"/>
+    </form>
+    <script type="text/javascript">
+        function receiveMessage(event) {
+            var matchstr = "(%matchstr%)($|:\\d+$)";
+            if (event.origin.match(matchstr) == null) {
+                var errRet = {};
+                errRet["func"] = "sign";
+                errRet["ret_code"] = 0x7600000F;
+                errRet["message"] = "禁止存取的網域";
+                if (window.opener) {
+                    window.opener.postMessage(JSON.stringify(errRet), event.origin);
+                }
+                window.close();
+                return;
+            }
+
+            var safeOrigin = event.origin;
+            var ret = JSON.parse(event.data);
+            var actionText = document.getElementById("actionText");
+
+            if (ret.func) {
+                var action = null;
+                var actionFun = null;
+                var actionConfig = {
+                    "MakeSignature":       { action: "sign",                                   fun: "sign",              text: "簽章中" },
+                    "umakeSig":            { action: "umakeSig",                               fun: "umakeSig",          text: "簽章中" },
+                    "GetUserCert":         { action: "pkcs11info?withcert=true",               fun: "pkcs11info",        text: "憑證讀取中" },
+                    "DecryptData":         { action: "decrypt",                                fun: "decrypt",           text: "解密中" },
+                    "writecert":           { action: "writecert",                              fun: "writecert",         text: "寫憑證中" },
+                    "CheckEnvir":          { action: "pkcs11info",                             fun: "pkcs11info",        text: "資料讀取中" },
+                    "changeUserPINCode":   { action: "CardManagement/sendCardCommand",         fun: "changeUserPINCode", text: "密碼變更中" },
+                    "makeCsr":             { action: "makeCsr",                                fun: "makeCsr",           text: "製作憑證請求檔中" },
+                    "signDetached":        { action: "signDetached",                           fun: "signDetached",      text: "簽章中" }
+                };
+
+                var config = actionConfig[ret.func];
+                if (config) {
+                    action = config.action;
+                    actionFun = config.fun;
+                    actionText.innerHTML = config.text;
+                }
+
+                if (action != null) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {
+                        if (xhttp.readyState == 4) {
+                            if (xhttp.status == 200) {
+                                if (window.opener) window.opener.postMessage(xhttp.responseText, safeOrigin);
+                                window.close();
+                            } else {
+                                if (window.opener) window.opener.postMessage('{"func":"'+actionFun+'","ret_code":'+xhttp.status+'}', safeOrigin);
+                                window.close();
+                            }
+                        }
+                    };
+                    xhttp.open("POST", action, true);
+                    xhttp.send("tbsPackage=" + event.data);
+                } else {
+                    if (window.opener) window.opener.postMessage('{"func":"'+actionFun+'","ret_code":'+0x7600000E+'}', safeOrigin);
+                    window.close();
+                }
+            }
+        }
+
+        if (window.addEventListener) {
+            window.addEventListener("message", receiveMessage, false);
+        }
+        
+        if (window.opener) {
+            var tbsData = {};
+            tbsData["func"] = "getTbs";
+            var msg = JSON.stringify(tbsData);
+            var postTarget = window.opener;
+
+            var initialOrigin = String.fromCharCode(42);
+            try {
+                if (document.referrer) {
+                    initialOrigin = new URL(document.referrer).origin;
+                }
+            } catch (e) {
+            }
+
+            postTarget.postMessage(msg, initialOrigin);
+        }
+    </script>
+    <br/>
+</body>
+</html>
